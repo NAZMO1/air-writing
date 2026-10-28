@@ -1,102 +1,146 @@
-# Air Writing — Reconnaissance d'Écriture Aérienne en Temps Réel
+# ✍️ Air Writing — Reconnaissance de lettres dans l'air
 
-[![Python Version](https://img.shields.io/badge/Python-3.10%2B-blue.svg)](https://www.python.org/)
-[![OpenCV](https://img.shields.io/badge/OpenCV-Computer%20Vision-green.svg)](https://opencv.org/)
-[![MediaPipe](https://img.shields.io/badge/MediaPipe-Tasks-orange.svg)](https://developers.google.com/mediapipe)
-[![Scikit-Learn](https://img.shields.io/badge/scikit--learn-MLP-yellow.svg)](https://scikit-learn.org/)
+**Interaction gestuelle en temps réel — MediaPipe · OpenCV · scikit-learn**
 
-Système interactif de vision par ordinateur et d'apprentissage automatique permettant d'écrire des lettres dans les airs à l'aide de l'index devant une webcam, puis de les transcrire en texte en temps réel.
+![Python](https://img.shields.io/badge/Python-Computer_Vision-3776AB?logo=python&logoColor=white) ![OpenCV](https://img.shields.io/badge/OpenCV-Image_Processing-5C3EE8?logo=opencv&logoColor=white) ![MediaPipe](https://img.shields.io/badge/MediaPipe-Hand_Landmarker-0097A7) ![MLP](https://img.shields.io/badge/scikit--learn-MLP-F7931E?logo=scikitlearn&logoColor=white)
 
----
+**Air Writing** est un prototype de vision par ordinateur qui permet de tracer des lettres devant une webcam avec son index. Le programme transforme un geste en image, prétraite celle-ci puis utilise un réseau de neurones multicouches pour prédire une lettre de l'alphabet.
 
-## Fonctionnalités
+## ✨ Fonctionnalités
 
-- **Suivi gestuel temps réel** : tracking précis des 21 repères biométriques de la main via la nouvelle API **MediaPipe Tasks**.
-- **Contrôle gestuel sans contact** :
-  - **Index levé seul** : écriture sur le canvas virtuel.
-  - **Main ouverte (5 doigts levés)** : réinitialisation du tracé et du mot en cours.
-  - **Pause de 1 seconde** : validation automatique et classification du caractère tracé.
-- **Pipeline de classification robuste** :
-  - Extraction de la zone d'intérêt (*bounding box*) et préservation du ratio d'aspect.
-  - Centrage dans une matrice $28 \times 28$ pixels (format standard MNIST).
-  - Prédiction par réseau de neurones multicouches (**MLPClassifier**).
-- **Entraînement enrichi par Data Augmentation** : génération synthétique avec rotations aléatoires, variations d'échelles, translations et opérations morphologiques (dilatation/érosion).
+- Détection d'une main et de ses **21 points de repère** avec MediaPipe Hand Landmarker.
+- Dessin sur un canevas virtuel lorsque **l'index est levé**.
+- Validation après une **pause supérieure à une seconde**.
+- Détection de la main ouverte pour réinitialiser le texte et le tracé.
+- Affichage en direct de la webcam, du tracé et des lettres reconnues.
+- Prétraitement OpenCV des tracés (dilatation, zone utile, redimensionnement et centrage).
+- Classification des lettres **A–Z** avec `MLPClassifier` de scikit-learn.
+- Génération d'exemples synthétiques avec rotation, décalage et changements d'épaisseur des lettres.
 
----
+## 🧱 Pipeline technique
 
-## Architecture du Projet
+```text
+Webcam → MediaPipe Hand Landmarker
+           │
+           ▼
+       Analyse des gestes
+           │
+           ├── Index levé → Tracé sur canevas
+           ├── Main ouverte → Effacement
+           └── Pause > 1 s → Classification
+                                  │
+                                  ▼
+                       Prétraitement OpenCV
+                       ROI → 20×20 → 28×28
+                                  │
+                                  ▼
+                      784 valeurs normalisées
+                                  │
+                                  ▼
+                       MLPClassifier → A–Z
+                                  │
+                                  ▼
+                      Texte affiché à l'écran
+```
+
+| Composant | Technologie |
+| --- | --- |
+| Capture et affichage | OpenCV |
+| Détection gestuelle | MediaPipe Tasks |
+| Calcul | NumPy |
+| Classification | scikit-learn, MLP |
+| Données synthétiques | Pillow, OpenCV |
+| Sauvegarde du modèle | joblib |
+
+## 🚀 Installation et lancement
+
+**Prérequis :** Python et dépendances compatibles avec `requirements.txt`, webcam accessible et bibliothèques graphiques système nécessaires à OpenCV.
+
+```bash
+git clone https://github.com/NAZMO1/air-writing.git
+cd air-writing
+python -m venv .venv
+
+# Linux/macOS
+source .venv/bin/activate
+# Windows PowerShell : .venv\Scripts\Activate.ps1
+
+pip install -r requirements.txt
+```
+
+**1. Télécharger le détecteur MediaPipe :**
+
+```bash
+mkdir -p data
+curl -L "https://storage.googleapis.com/mediapipe-models/hand_landmarker/hand_landmarker/float16/1/hand_landmarker.task" -o data/hand_landmarker.task
+```
+
+**2. Entraîner le modèle de lettres :**
+
+```bash
+python train_model.py
+```
+
+Le script génère des lettres synthétiques et sauvegarde le classifieur dans `data/letter_model.pkl`. Ces deux fichiers de modèles ne figurent pas actuellement dans le dépôt : leur préparation est indispensable avant le premier lancement.
+
+**3. Démarrer :**
+
+```bash
+python main.py
+```
+
+| Action | Geste ou touche |
+| --- | --- |
+| Dessiner | Index levé, autres doigts repliés |
+| Déclencher une prédiction | Pause de plus d'une seconde après un tracé |
+| Réinitialiser | Main ouverte, si détectée |
+| Effacer | `c` |
+| Quitter | `q` |
+
+## 📁 Organisation
 
 ```text
 air-writing/
-│
-├── data/
-│   ├── hand_landmarker.task   # Modèle de détection de main MediaPipe
-│   └── letter_model.pkl       # Modèle Scikit-learn entraîné
-│
+├── main.py                # Capture vidéo, gestes et affichage
+├── train_model.py         # Création des données et entraînement
+├── test_cam.py            # Test de la caméra
 ├── src/
 │   ├── __init__.py
-│   ├── hand_tracker.py        # Wrapper MediaPipe Tasks & extraction des gestes
-│   └── classifier.py          # Prétraitement d'image et inférence MLP
-│
-├── main.py                    # Boucle principale temps réel OpenCV
-├── train_model.py             # Script d'entraînement avec data augmentation
-├── requirements.txt           # Dépendances du projet
+│   ├── hand_tracker.py    # Détection de main avec MediaPipe
+│   └── classifier.py      # Prétraitement et classification
+├── requirements.txt
 └── README.md
-Pipeline Technique
-Flux Vidéo (Webcam)
-       │
-       ▼
-[MediaPipe HandLandmarker] ──► Détection des repères (Landmark 8 : Index)
-       │
-       ▼
-[Contrôle d'États] ──────────► Détection du geste (Index seul / Main ouverte)
-       │
-       ▼
-[Canvas Virtuel] ────────────► Tracé continu en pixels blancs (masque binaire)
-       │
-       ▼ (Pause > 1s)
-[Prétraitement OpenCV] ──────► Boîte englobante, redimensionnement 20x20, centrage 28x28, flou
-       │
-       ▼
-[MLPClassifier] ─────────────► Vecteur aplati (784 features) ──► Lettre prédite (A-Z)
-Installation et Utilisation
-1. Cloner le dépôt
-Bash
-git clone [https://github.com/NAZMO1/air-writing.git](https://github.com/NAZMO1/air-writing.git)
-cd air-writing
-2. Créer un environnement virtuel et installer les dépendances
-Bash
-python -m venv venv
-# Sur Linux / WSL :
-source venv/bin/activate
-# Sur Windows (PowerShell) :
-.\venv\Scripts\Activate.ps1
 
-pip install -r requirements.txt
-3. Télécharger le modèle de main MediaPipe
-Bash
-mkdir -p data
-curl -o data/hand_landmarker.task -L [https://storage.googleapis.com/mediapipe-models/hand_landmarker/hand_landmarker/float16/1/hand_landmarker.task](https://storage.googleapis.com/mediapipe-models/hand_landmarker/hand_landmarker/float16/1/hand_landmarker.task)
-4. Entraîner le modèle de classification
-Bash
-python train_model.py
-5. Lancer l'application
-Bash
-python main.py
-Appuyez sur c pour effacer l'écran manuellement.
+data/                      # Dossier créé localement
+├── hand_landmarker.task   # Modèle MediaPipe téléchargé
+└── letter_model.pkl       # Modèle entraîné
+```
 
-Appuyez sur q pour quitter.
+## 🧠 Modèle de classification
 
-Défis Techniques Résolus
-Migration d'API MediaPipe : intégration directe de l'API mediapipe.tasks.python.vision.HandLandmarker pour pérenniser la compatibilité avec les versions récentes de Python.
+`train_model.py` tente de produire **300 exemples par lettre**, soit jusqu'à **7 800 images** réparties sur les 26 classes. Les caractères synthétiques sont déformés puis normalisés en **28 × 28 pixels**. Le classifieur utilise deux couches cachées de **128 et 64 neurones**.
 
-Prétraitement d'Image Dynamique : normalisation des tracés aériens (souvent tremblants et d'échelles variées) via une boîte englobante dynamique et un redimensionnement avec conservation de proportions (aspect ratio padding).
+L'inférence dans `src/classifier.py` retient une prédiction si la probabilité maximale dépasse **0,25**. Ce seuil heuristique **n'est pas une mesure de précision**.
 
-Gestion Matérielle & Flux Vidéo : configuration des backends de capture OpenCV (cv2.CAP_DSHOW sous Windows, cv2.CAP_V4L2 sous Linux) et résolution des dépendances graphiques natives OpenGL/GLES (libGLESv2).
+**Attention :** le modèle est entraîné sur des images de caractères typographiques transformés, et non sur un ensemble de tracés aériens capturés avec webcam. Aucune évaluation indépendante de précision n'est publiée. Les résultats réels peuvent donc être limités ou variables.
 
-Améliorations Futures
-[ ] Entraînement sur le dataset manuscrit EMNIST Letters pour supporter des styles d'écriture encore plus variés.
+Le script d'entraînement essaie de charger la police `arial.ttf` puis utilise une police de secours si elle manque, ce qui peut influencer les données.
 
-[ ] Remplacement du classifieur MLP par un réseau convolutif (CNN) sous PyTorch.
+## ⚠️ Limites
 
-[ ] Reconnaissance dynamique par trajectoire séquentielle (coordonnées temporelles avec LSTM / Dynamic Time Warping).
+- La reconnaissance de gestes utilise des règles géométriques simples, sensibles à l'orientation de la main.
+- La classification porte sur l'image du tracé, **pas sur la trajectoire temporelle**.
+- Les modèles doivent être préparés localement ; la compatibilité des versions de dépendances peut varier.
+- Pas de validation quantitative sur un jeu de test indépendant dans la version actuelle.
+
+## 🛣️ Évolutions possibles
+
+- [ ] Collecter des tracés aériens réels et mesurer la précision sur des données séparées.
+- [ ] Comparer le MLP à un réseau convolutif (CNN).
+- [ ] Expérimenter une classification de trajectoires dans le temps.
+- [ ] Fiabiliser la détection des gestes et les différentes orientations de main.
+- [ ] Ajouter tests automatisés, captures et démonstration vidéo.
+
+---
+
+**Projet personnel : computer vision, traitement d'image et apprentissage automatique.**
