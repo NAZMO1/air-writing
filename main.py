@@ -27,8 +27,14 @@ def run():
     cap.set(cv2.CAP_PROP_FRAME_WIDTH, 640)
     cap.set(cv2.CAP_PROP_FRAME_HEIGHT, 480)
 
-    tracker = HandTracker()
-    classifier = LetterClassifier()
+    try:
+        tracker = HandTracker()
+        classifier = LetterClassifier()
+    except (FileNotFoundError, OSError) as exc:
+        print(f"Impossible de charger les modèles : {exc}")
+        print("Vérifiez data/hand_landmarker.task et lancez python train_model.py pour créer data/letter_model.pkl.")
+        cap.release()
+        return
 
     canvas = None
     prev_x, prev_y = 0, 0
