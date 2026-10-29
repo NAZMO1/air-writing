@@ -6,6 +6,14 @@
 
 **Air Writing** est un prototype de vision par ordinateur qui permet de tracer des lettres devant une webcam avec son index. Le programme transforme un geste en image, prétraite celle-ci puis utilise un réseau de neurones multicouches pour prédire une lettre de l'alphabet.
 
+## 🎬 Démonstration vidéo
+
+[![Aperçu de la démonstration Air Writing](docs/media/demo-preview.jpg)](https://github.com/NAZMO1/air-writing/blob/main/docs/media/air-writing-demo.mp4)
+
+**[▶ Voir la démonstration (21 secondes)](https://github.com/NAZMO1/air-writing/blob/main/docs/media/air-writing-demo.mp4)** — Cliquez sur l’aperçu pour ouvrir la vidéo et lancer la lecture sur GitHub.
+
+[ Télécharger la vidéo MP4](https://github.com/NAZMO1/air-writing/raw/refs/heads/main/docs/media/air-writing-demo.mp4)
+
 ## ✨ Fonctionnalités
 
 - Détection d'une main et de ses **21 points de repère** avec MediaPipe Hand Landmarker.
@@ -166,7 +174,7 @@ Les tests couvrent les lettres fines, les images vides, la translation, les rota
 - [ ] Expérimenter une classification de trajectoires dans le temps.
 - [x] Ajouter suivi vidéo, angles articulaires et lissage du tracé.
 - [x] Ajouter des tests automatisés.
-- [ ] Ajouter captures et démonstration vidéo.
+- [x] Ajouter un aperçu et une démonstration vidéo.
 
 ---
 
