@@ -1,99 +1,89 @@
-import os
+"""Reproducible synthetic baseline; validation is NOT webcam accuracy."""
+import argparse
+from pathlib import Path
+import cv2
 import joblib
 import numpy as np
 from PIL import Image, ImageDraw, ImageFont
-import cv2
+from sklearn.model_selection import train_test_split
 from sklearn.neural_network import MLPClassifier
+from sklearn.metrics import accuracy_score
+from threadpoolctl import threadpool_limits
+from src.preprocessing import normalize_letter
 
-def generate_augmented_dataset(samples_per_letter=250):
-    X = []
-    y = []
+ROOT = Path(__file__).resolve().parent
 
-    # 1 à 26 pour A à Z
+
+def available_fonts():
+    candidates = ['arial.ttf', 'DejaVuSans.ttf', 'DejaVuSansMono.ttf',
+                  'C:/Windows/Fonts/arial.ttf', 'C:/Windows/Fonts/calibri.ttf',
+                  '/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf',
+                  '/usr/share/fonts/truetype/dejavu/DejaVuSansMono.ttf',
+                  '/System/Library/Fonts/Supplemental/Arial.ttf']
+    fonts = []
+    for path in candidates:
+        try:
+            font = ImageFont.truetype(path, 48)
+            if font.path not in [f.path for f in fonts]:
+                fonts.append(font)
+        except OSError:
+            pass
+    if not fonts:
+        raise RuntimeError('Installez une police TrueType Arial ou DejaVu Sans avant l entrainement.')
+    return fonts
+
+
+def generate_augmented_dataset(samples_per_letter=250, seed=42):
+    rng = np.random.default_rng(seed)
+    fonts = available_fonts()
+    X, y = [], []
     for label in range(1, 27):
-        letter = chr(64 + label)
-        
         for _ in range(samples_per_letter):
-            # Image de base 64x64 pour dessiner proprement
-            img = Image.new("L", (64, 64), color=0)
-            draw = ImageDraw.Draw(img)
+            # Mix typography and single-line lettering, closer to finger strokes.
+            arr = np.zeros((96, 96), np.uint8)
+            letter = chr(64+label)
+            if rng.random() < .5:
+                font = fonts[int(rng.integers(len(fonts)))]
+                img = Image.fromarray(arr)
+                draw = ImageDraw.Draw(img)
+                box = draw.textbbox((0, 0), letter, font=font)
+                draw.text(((96-box[2]+box[0])/2-box[0], (96-box[3]+box[1])/2-box[1]), letter, font=font, fill=255)
+                arr = np.array(img)
+            else:
+                face = int(rng.choice([cv2.FONT_HERSHEY_SIMPLEX, cv2.FONT_HERSHEY_PLAIN, cv2.FONT_HERSHEY_DUPLEX]))
+                size, _ = cv2.getTextSize(letter, face, 2, 2)
+                cv2.putText(arr, letter, ((96-size[0])//2, (96+size[1])//2), face, 2, 255, int(rng.integers(1, 4)), cv2.LINE_AA)
+            matrix = cv2.getRotationMatrix2D((48,48), float(rng.uniform(-15,15)), float(rng.uniform(.85,1.1)))
+            matrix[0,1] += rng.uniform(-.12,.12)
+            arr = cv2.warpAffine(arr, matrix, (96,96))
+            if rng.random() < .35:
+                arr = cv2.dilate(arr, np.ones((2,2), np.uint8))
+            features = normalize_letter(arr)
+            if features is not None:
+                X.append(features)
+                y.append(label)
+    return np.asarray(X, np.float32), np.asarray(y)
 
-            # Variation de taille de police
-            font_size = np.random.randint(40, 56)
-            try:
-                font = ImageFont.truetype("arial.ttf", font_size)
-            except IOError:
-                font = ImageFont.load_default()
 
-            # Placement aléatoire avec décalage
-            offset_x = np.random.randint(-6, 7)
-            offset_y = np.random.randint(-6, 7)
-            draw.text((16 + offset_x, 8 + offset_y), letter, fill=255, font=font)
+def train(samples=300, iterations=80):
+    X, y = generate_augmented_dataset(samples)
+    train_x, test_x, train_y, test_y = train_test_split(X, y, test_size=.2, stratify=y, random_state=42)
+    clf = MLPClassifier(hidden_layer_sizes=(128,64), max_iter=iterations,
+                        early_stopping=True, n_iter_no_change=8, random_state=42)
+    with threadpool_limits(limits=2):
+        clf.fit(train_x, train_y)
+        score = accuracy_score(test_y, clf.predict(test_x))
+    print(f'Validation synthetique separee : {score:.1%} (ne mesure pas la precision webcam).')
+    (ROOT/'data').mkdir(exist_ok=True)
+    joblib.dump(clf, ROOT/'data/letter_model.pkl')
+    print('Modele sauvegarde. Relancez python main.py.')
 
-            arr = np.array(img)
 
-            # 1. Rotation aléatoire (-18° à +18°)
-            angle = np.random.uniform(-18, 18)
-            M_rot = cv2.getRotationMatrix2D((32, 32), angle, 1.0)
-            arr = cv2.warpAffine(arr, M_rot, (64, 64))
-
-            # 2. Épaississement ou amincissement aléatoire du trait
-            k_size = np.random.choice([1, 2, 3])
-            if k_size > 1:
-                kernel = np.ones((k_size, k_size), np.uint8)
-                if np.random.rand() > 0.4:
-                    arr = cv2.dilate(arr, kernel, iterations=1)
-                else:
-                    arr = cv2.erode(arr, kernel, iterations=1)
-
-            # 3. Recadrage strict et centrage dans 20x20 vers 28x28 (identique au classifier)
-            pts = cv2.findNonZero(arr)
-            if pts is not None:
-                x, y_box, w, h = cv2.boundingRect(pts)
-                if w > 0 and h > 0:
-                    roi = arr[y_box : y_box + h, x : x + w]
-                    
-                    if w > h:
-                        new_w = 20
-                        new_h = max(int(h * (20 / w)), 1)
-                    else:
-                        new_h = 20
-                        new_w = max(int(w * (20 / h)), 1)
-
-                    resized = cv2.resize(roi, (new_w, new_h), interpolation=cv2.INTER_AREA)
-
-                    padded = np.zeros((28, 28), dtype=np.uint8)
-                    pad_x = (28 - new_w) // 2
-                    pad_y = (28 - new_h) // 2
-                    padded[pad_y : pad_y + new_h, pad_x : pad_x + new_w] = resized
-
-                    # Flou léger pour simuler la fluidité du doigt
-                    padded = cv2.GaussianBlur(padded, (3, 3), 0)
-
-                    X.append(padded.flatten() / 255.0)
-                    y.append(label)
-
-    return np.array(X, dtype=np.float32), np.array(y)
-
-def train():
-    os.makedirs("data", exist_ok=True)
-    print("Génération du dataset enrichi (lettres déformées, pivotées, épaissies)...")
-    X, y = generate_augmented_dataset(samples_per_letter=300)
-    print(f"Dataset prêt : {len(X)} images générées.")
-
-    print("Entraînement du MLP en cours...")
-    # Deux couches cachées pour mieux capturer les variations géométriques
-    clf = MLPClassifier(
-        hidden_layer_sizes=(128, 64),
-        activation="relu",
-        max_iter=30,
-        random_state=42
-    )
-    clf.fit(X, y)
-
-    model_path = "data/letter_model.pkl"
-    joblib.dump(clf, model_path)
-    print(f"Modèle sauvegardé dans {model_path} avec succès.")
-
-if __name__ == "__main__":
-    train()
+if __name__ == '__main__':
+    parser = argparse.ArgumentParser()
+    parser.add_argument('--samples', type=int, default=300)
+    parser.add_argument('--iterations', type=int, default=80)
+    args = parser.parse_args()
+    if args.samples < 10 or args.iterations < 1:
+        parser.error('--samples doit etre >= 10 et --iterations >= 1')
+    train(args.samples, args.iterations)
