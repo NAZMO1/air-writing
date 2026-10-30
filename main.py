@@ -5,12 +5,15 @@ import numpy as np
 from src.classifier import LetterClassifier
 from src.hand_tracker import HandTracker
 from src.gestures import StrokeTracker
+from src.words import WordComposer, ascii_text
+from src.speech import SpeechPlayer
 
 
 def run():
     backend = cv2.CAP_DSHOW if sys.platform.startswith('win') else cv2.CAP_ANY
     cap = cv2.VideoCapture(0, backend)
     tracker = None
+    speaker = SpeechPlayer()
     try:
         if not cap.isOpened():
             cap.release()
@@ -24,7 +27,8 @@ def run():
         tracker = HandTracker()
         stroke = StrokeTracker()
         canvas = None
-        word, status = '', 'Index seul : dessiner'
+        composer = WordComposer()
+        status = 'Index seul : dessiner'
         pen_up_since = open_since = None
         clear_latched = False
         pending = False
@@ -48,7 +52,8 @@ def run():
                 if open_since is None:
                     open_since = now
                 if now-open_since >= 0.8 and not clear_latched:
-                    word, status = '', 'Efface'
+                    composer.clear()
+                    status = 'Efface'
                     canvas.fill(0)
                     pending = False
                     stroke.reset()
@@ -74,7 +79,7 @@ def run():
             if pending and (auto_commit or key in (10, 13)):
                 letter = classifier.predict(canvas)
                 if letter:
-                    word += letter
+                    composer.add_letter(letter)
                     status = f'{letter} (score {classifier.confidence:.0%})'
                     canvas.fill(0)
                 else:
@@ -91,18 +96,45 @@ def run():
                 pen_up_since = None
                 status = 'Efface'
                 if key == ord('c'):
-                    word = ''
+                    composer.clear()
             if key in (8, 127):
-                word = word[:-1]
+                composer.backspace()
+            if key == ord('l'):
+                composer.toggle_language()
+                status = f'Langue : {composer.language.upper()}'
+            if key == 32 or key in (ord('1'), ord('2'), ord('3')):
+                if np.any(canvas):
+                    status = 'Validez la lettre avec Entree ou effacez le trace avec x'
+                elif key == 32:
+                    composer.space()
+                    status = 'Espace ajoute'
+                elif composer.accept(key - ord('1')):
+                    status = 'Suggestion validee + espace'
+            speech_status = speaker.poll()
+            if speech_status:
+                status = speech_status
+            if key in (ord('v'), ord('b')):
+                text = composer.text if key == ord('v') else composer.text.strip().rsplit(' ', 1)[-1]
+                status = speaker.play(text, composer.language)
             frame[canvas > 0] = (0, 255, 0)
-            cv2.rectangle(frame, (0, 0), (w, 85), (30, 30, 30), -1)
-            cv2.putText(frame, f'Mot : {word[-25:]}', (12, 32), cv2.FONT_HERSHEY_SIMPLEX, .8, (255,255,255), 2)
-            cv2.putText(frame, status, (12, 60), cv2.FONT_HERSHEY_SIMPLEX, .5, (220,220,220), 1)
-            cv2.putText(frame, 'Entree: valider | x: trace | c: tout | q: quitter', (12, h-12), cv2.FONT_HERSHEY_SIMPLEX, .45, (255,255,255), 1)
-            cv2.imshow('Air Writing', frame)
+            # Put controls outside the camera area; no hidden strokes under the HUD.
+            display = np.zeros((h + 160, w, 3), np.uint8)
+            display[110:110+h] = frame
+            def label(text, y, scale=.48, color=(220,220,220)):
+                cv2.putText(display, ascii_text(text), (12, y), cv2.FONT_HERSHEY_SIMPLEX,
+                            scale, color, 1, cv2.LINE_AA)
+            label(f'[{composer.language.upper()}] Texte : {composer.text[-45:]}', 25, .65)
+            word_state = 'mot reconnu' if composer.recognized else 'mot en cours / inconnu'
+            choices = ' | '.join(f'{i+1}: {word}' for i, word in enumerate(composer.suggestions))
+            label(f'{word_state} | {choices}'[:95], 52)
+            label(status, 80)
+            label('L: FR/EN | Espace: mot suivant | 1/2/3: suggestion', h+130)
+            label('Entree: lettre | V: lire texte | B: dernier mot | x: trace | c: tout | q: quitter', h+150, .40)
+            cv2.imshow('Air Writing', display)
     except (FileNotFoundError, OSError) as exc:
         print(f'Modeles indisponibles : {exc}. Consultez le README et lancez python train_model.py.')
     finally:
+        speaker.close()
         if tracker is not None:
             tracker.close()
         cap.release()

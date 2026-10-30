@@ -26,3 +26,7 @@ six==1.17.0
 sounddevice==0.5.6
 threadpoolctl==3.7.0
 tzdata==2026.5
+
+# Offline French/English word suggestions and system text-to-speech
+pyspellchecker>=0.8.1,<1
+pyttsx3>=2.98,<3

@@ -1,4 +1,4 @@
-# ✍️ Air Writing — Reconnaissance de lettres dans l'air
+# ✍️ Air Writing — Lettres, mots et synthèse vocale
 
 **Interaction gestuelle en temps réel — MediaPipe · OpenCV · scikit-learn**
 
@@ -24,6 +24,62 @@
 - Prétraitement commun à l’entraînement et à la reconnaissance : zone utile, redimensionnement et centrage, y compris pour les lettres fines.
 - Classification des lettres **A–Z** avec `MLPClassifier` de scikit-learn.
 - Génération d'exemples synthétiques avec rotation, décalage et changements d'épaisseur des lettres.
+
+## Mots français / anglais et lecture vocale
+
+Écrivez **une lettre à la fois**, validez-la avec Entrée ou en repliant les doigts,
+puis continuez le mot. `L` bascule entre les dictionnaires français et anglais
+(le français est sélectionné au lancement). La langue est choisie manuellement.
+
+- Le mot courant est signalé comme reconnu lorsqu'il appartient au dictionnaire.
+- Jusqu'à trois suggestions sont proposées : `1`, `2` ou `3` applique la suggestion
+  correspondante et ajoute un espace. Les variantes accentuées françaises sont proposées
+  même si les lettres tracées A–Z ne portent pas d'accent.
+- **Espace** conserve le mot tel quel et passe au suivant, y compris pour les noms propres.
+  Aucun mot n'est corrigé automatiquement. Un tracé restant doit d'abord être validé
+  avec Entrée ou effacé avec `x`.
+- **V** lit tout le texte ; **B** lit le dernier mot, avec une voix de la langue sélectionnée.
+- Retour arrière supprime le dernier caractère, y compris un espace.
+- La webcam reste active pendant la lecture. Une nouvelle lecture est refusée tant que
+  la précédente n'est pas terminée ; quitter l'application arrête aussi la voix.
+
+**Mise à jour d'une installation existante :**
+
+```bash
+git pull
+python -m pip install "pyspellchecker>=0.8.1,<1" "pyttsx3>=2.98,<3"
+python main.py
+```
+
+Aucun réentraînement supplémentaire n'est nécessaire pour ces fonctions si votre
+modèle de lettres fonctionne déjà. Les dictionnaires sont inclus dans pyspellchecker ;
+le texte et la voix sont traités localement, sans API ni clé payante.
+
+**Voix système :** installez les voix française et anglaise dans les paramètres de
+langue/parole de Windows ou de macOS. Sur Ubuntu/Debian, installez le moteur eSpeak :
+
+```bash
+sudo apt install espeak-ng libespeak1
+```
+
+Pour vérifier la voix indépendamment de la webcam :
+
+```bash
+python -m src.speech --language fr --text "Bonjour tout le monde"
+python -m src.speech --language en --text "Hello world"
+```
+
+Si une voix ou le moteur manque, l'application affiche un message et le terminal
+explique l'erreur ; l'écriture reste disponible. Sous WSL, l'accès caméra/audio dépend
+de votre configuration : privilégiez Windows natif pour utiliser les deux ensemble.
+L'affichage OpenCV retire les accents pour la lisibilité, mais le texte interne et
+la synthèse vocale les conservent.
+
+**Limites :** il s'agit d'assembler des lettres puis de consulter un dictionnaire,
+pas de reconnaître un mot cursif entier en un seul tracé. Les suggestions ne comprennent
+pas le contexte d'une phrase et peuvent être incorrectes. Elles couvrent une modification
+orthographique et les variantes accentuées ; les mots de plus de 32 caractères ne sont
+pas analysés. La lecture est limitée à 2 000 caractères par demande.
 
 ## 🧱 Pipeline technique
 
@@ -103,7 +159,11 @@ python main.py
 | Déclencher une prédiction | Replier les doigts 1,2 s, ou appuyer sur Entrée |
 | Réinitialiser | Main ouverte pendant 0,8 s |
 | Effacer seulement le tracé | `x` |
-| Supprimer la dernière lettre | Retour arrière |
+| Supprimer le dernier caractère | Retour arrière |
+| Changer de langue FR/EN | `l` |
+| Ajouter un espace | Espace |
+| Accepter une suggestion et ajouter un espace | `1`, `2`, `3` |
+| Lire tout le texte / le dernier mot | `v` / `b` |
 | Effacer | `c` |
 | Quitter | `q` |
 
@@ -117,6 +177,8 @@ air-writing/
 ├── src/
 │   ├── __init__.py
 │   ├── hand_tracker.py    # Détection de main avec MediaPipe
+│   ├── words.py           # Composition et suggestions FR/EN
+│   ├── speech.py          # Synthèse vocale hors ligne dans un processus séparé
 │   └── classifier.py      # Prétraitement et classification
 ├── requirements.txt
 └── README.md
@@ -159,6 +221,10 @@ python -m unittest discover -s tests -v
 ```
 
 Les tests couvrent les lettres fines, les images vides, la translation, les rotations et le miroir des repères, les ruptures de suivi, les prédictions ambiguës et la génération reproductible. La webcam doit encore être testée manuellement : écrire A/I/L, lever puis replier l’index, sortir la main du champ et tester les deux mains. Aucun gain chiffré de précision sur webcam n’est revendiqué.
+
+Les tests de mots/voix couvrent également les dictionnaires FR/EN, les accents, les
+espaces, les corrections explicites, la sélection des voix et les erreurs audio simulées.
+Ils ne remplacent pas un essai réel caméra + haut-parleurs sur votre ordinateur.
 
 ## ⚠️ Limites
 
