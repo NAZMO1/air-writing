@@ -198,6 +198,12 @@ python -m src.speech --language en --text "Hello world"
 
 Une voix absente produit un message explicite sans empêcher d'écrire. OpenCV
 retire les accents de l'affichage, mais le texte interne et la voix les conservent.
+Pour éviter que certaines voix épellent les mots en majuscules, les mots connus du
+dictionnaire (`EAU`, `BONJOUR`, `HELLO`…) sont mis en minuscules uniquement dans la
+copie envoyée à la voix. Le document et les sigles inconnus restent inchangés.
+Si le texte reconnu affiche `E A U`, les espaces font réellement partie du texte :
+écrivez les lettres plus près et validez uniquement à la fin du mot, ou utilisez
+le mode lettres sans ajouter d'espace entre chaque lettre.
 
 ## Mode lettres et modèle existant
 

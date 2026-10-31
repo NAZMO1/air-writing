@@ -1,7 +1,9 @@
 """Offline speech in a separate process so camera capture never waits for audio."""
 import argparse
 from collections import deque
+from functools import lru_cache
 import locale
+import re
 from pathlib import Path
 import subprocess
 import sys
@@ -23,6 +25,29 @@ def find_voice(voices, language):
     return None
 
 
+@lru_cache(maxsize=2)
+def speech_dictionary(language):
+    from spellchecker import SpellChecker
+    return SpellChecker(language=language)
+
+
+def prepare_speech_text(text, language):
+    """Let normal uppercase words sound like words, retaining unknown acronyms.
+
+    Never remove spaces: 'E A U' is not the same input as 'EAU'. Only the copy
+    sent to the voice is changed; the displayed/recognized document is untouched.
+    """
+    dictionary = speech_dictionary(language)
+
+    def normalize(match):
+        word = match.group()
+        if len(word) > 1 and word.isupper() and dictionary.known([word.lower()]):
+            return word.lower()
+        return word
+
+    return re.sub(r"[^\W\d_]+(?:['’-][^\W\d_]+)*", normalize, text)
+
+
 def speak(text, language):
     import pyttsx3
     engine = pyttsx3.init()
@@ -32,7 +57,7 @@ def speak(text, language):
             raise RuntimeError(f'Installez une voix {language.upper()} dans votre systeme.')
         engine.setProperty('voice', voice)
         engine.setProperty('rate', 165)
-        engine.say(text)
+        engine.say(prepare_speech_text(text, language))
         engine.runAndWait()
     finally:
         engine.stop()

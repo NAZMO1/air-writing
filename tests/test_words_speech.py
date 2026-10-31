@@ -2,7 +2,7 @@ import unittest
 from types import SimpleNamespace
 from unittest.mock import Mock, patch
 from src.words import WordComposer, ascii_text
-from src.speech import SpeechPlayer, find_voice, speak
+from src.speech import SpeechPlayer, find_voice, speak, prepare_speech_text
 
 
 class WordTests(unittest.TestCase):
@@ -72,6 +72,18 @@ class WordTests(unittest.TestCase):
 
 
 class SpeechTests(unittest.TestCase):
+    def test_uppercase_words_are_prepared_for_natural_speech(self):
+        self.assertEqual(prepare_speech_text('EAU', 'fr'), 'eau')
+        self.assertEqual(prepare_speech_text('BONJOUR, EAU !', 'fr'), 'bonjour, eau !')
+        self.assertEqual(prepare_speech_text('HELLO WORLD', 'en'), 'hello world')
+        self.assertEqual(prepare_speech_text('ÉLÉPHANT', 'fr'), 'éléphant')
+
+    def test_speech_preserves_spacing_single_letters_and_unknown_acronyms(self):
+        self.assertEqual(prepare_speech_text('E A U', 'fr'), 'E A U')
+        self.assertEqual(prepare_speech_text('QZXV', 'fr'), 'QZXV')
+        self.assertEqual(prepare_speech_text('Bonjour à tous.', 'fr'), 'Bonjour à tous.')
+        self.assertEqual(prepare_speech_text('A', 'en'), 'A')
+
     def test_voice_metadata(self):
         voices = [SimpleNamespace(id='fr', languages=[b'\x05fr-fr']),
                   SimpleNamespace(id='en', languages=['en_US'])]
@@ -117,7 +129,7 @@ class SpeechTests(unittest.TestCase):
         with patch.dict('sys.modules', {'pyttsx3': SimpleNamespace(init=lambda: engine)}):
             speak('ÉLÉPHANT', 'fr')
             engine.setProperty.assert_any_call('voice', 'french')
-            engine.say.assert_called_once_with('ÉLÉPHANT')
+            engine.say.assert_called_once_with('éléphant')
             engine.runAndWait.assert_called_once()
             with self.assertRaises(RuntimeError):
                 speak('HELLO', 'en')
