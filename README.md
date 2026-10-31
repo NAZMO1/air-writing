@@ -25,6 +25,24 @@ Aucune précision sur de vrais tracés webcam n'est revendiquée.
 Cette vidéo montre la version précédente, lettre par lettre ; elle ne valide pas
 les performances du nouveau mode OCR.
 
+## 🎮 Continuité : Turbo Duel — piloter avec la main
+
+Après le tracé avec l’index, le suivi de main devient une manette : **le poignet pilote une voiture en 2D et le pouce déplié active le turbo**. Cette extension est un jeu **solo contre un bot**, sans multijoueur ni salle à code.
+
+**[▶ Jouer dans le navigateur](https://turbo-duel-nazmo.adeptmole259.chatgpt.site)** · **[Code et instructions](extensions/turbo-duel/README.md)**
+
+Les deux projets utilisent les 21 repères de **MediaPipe Hand Landmarker**. Air Writing utilise Python/OpenCV et la reconnaissance de texte ; Turbo Duel est un portage web du principe d’interaction, en JavaScript/Canvas. Il ne dépend pas de l’OCR ni du modèle de lettres.
+
+Webcam : calibration du poignet, mouvement gauche/droite et haut/bas, turbo au pouce, pause automatique en cas de perte de main. Alternative clavier/tactile disponible. Les images sont traitées localement ; Internet sert au téléchargement des bibliothèques et du modèle. La détection reste sensible à l’éclairage et aux occlusions ; les tests avec repères simulés ne remplacent pas un essai à la webcam.
+
+Pour lancer l’extension sans installer les dépendances Python du projet :
+
+```bash
+python -m http.server 8000 --directory extensions/turbo-duel --bind 127.0.0.1
+```
+
+Ouvrir `http://localhost:8000` dans un navigateur récent. Le navigateur Windows peut utiliser directement sa webcam même si le serveur est lancé sous WSL.
+
 ## Installation
 
 Utilisez un environnement Python compatible avec les dépendances et une webcam.
