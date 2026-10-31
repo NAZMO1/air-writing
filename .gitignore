@@ -4,3 +4,5 @@ __pycache__/
 .vscode/
 data/*.task
 data/*.pkl
+data/easyocr/
+.venv/

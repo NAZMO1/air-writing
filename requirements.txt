@@ -13,7 +13,6 @@ mediapipe==1.1.1
 narwhals==2.28.0
 numpy==2.5.4
 opencv-contrib-python==5.0.0.93
-opencv-python==5.0.0.93
 packaging==26.3
 pandas==3.1.0
 pillow==13.0.0
@@ -30,3 +29,5 @@ tzdata==2026.5
 # Offline French/English word suggestions and system text-to-speech
 pyspellchecker>=0.8.1,<1
 pyttsx3>=2.98,<3
+
+# Whole-word OCR is optional: see requirements-ocr.txt and README for GUI setup.

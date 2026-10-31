@@ -71,6 +71,28 @@ class WordComposer:
         self.text = ''
         self.refresh()
 
+    def set_language(self, language):
+        if language not in self.dictionaries:
+            raise ValueError('Langue attendue : fr ou en.')
+        self.language = language
+        self.refresh()
+
+    def append_text(self, text):
+        """Commit an OCR line, preserving accents and explicit word boundaries."""
+        text = ' '.join(text.split())
+        if text:
+            if self.text and not self.text.endswith(' '):
+                self.text += ' '
+            self.text += text
+        self.refresh()
+
+    def punctuate(self, mark):
+        if mark not in ('.', '!', '?'):
+            raise ValueError('Ponctuation attendue : . ! ?')
+        if self.text.strip():
+            self.text = self.text.rstrip() + mark + ' '
+        self.refresh()
+
     def toggle_language(self):
         self.language = 'en' if self.language == 'fr' else 'fr'
         self.refresh()

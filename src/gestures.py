@@ -54,3 +54,37 @@ class StrokeTracker:
         segment = tuple(tuple(round(v) for v in p) for p in (self.previous,filtered))
         self.previous = filtered
         return segment
+
+
+class HeldGesture:
+    """Fire once after a stable gesture; require release before firing again."""
+    def __init__(self, duration=0.9):
+        self.duration = duration
+        self.reset()
+
+    def reset(self):
+        self.name = None
+        self.since = None
+        self.fired = False
+
+    def update(self, name, now):
+        if name is None:
+            self.reset()
+            return None
+        if name != self.name:
+            self.name, self.since, self.fired = name, now, False
+        if not self.fired and now-self.since >= self.duration:
+            self.fired = True
+            return name
+        return None
+
+
+def language_gesture(fingers):
+    """Ignore the thumb to support both hands and a relaxed writing pose."""
+    if len(fingers) != 5:
+        return None
+    if fingers[1] and not any(fingers[2:]):
+        return 'fr'
+    if fingers[1] and fingers[2] and not any(fingers[3:]):
+        return 'en'
+    return None

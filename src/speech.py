@@ -1,5 +1,6 @@
 """Offline speech in a separate process so camera capture never waits for audio."""
 import argparse
+from collections import deque
 import locale
 from pathlib import Path
 import subprocess
@@ -40,14 +41,20 @@ def speak(text, language):
 class SpeechPlayer:
     def __init__(self):
         self.process = None
+        self.queue = deque()
 
-    def play(self, text, language):
-        if self.process is not None:
-            return 'Lecture deja en cours'
+    def play(self, text, language, enqueue=False):
         if not text.strip():
             return 'Aucun texte a lire'
         if len(text) > 2000:
             return 'Texte trop long pour la lecture (maximum 2000 caracteres)'
+        if self.process is not None:
+            if enqueue:
+                if len(self.queue) >= 20:
+                    return 'File vocale pleine : utilisez Entree pour relire le texte'
+                self.queue.append((text, language))
+                return 'Lecture ajoutee a la file'
+            return 'Lecture deja en cours'
         try:
             self.process = subprocess.Popen(
                 [sys.executable, '-m', 'src.speech', '--language', language, '--text', text.strip()],
@@ -66,11 +73,15 @@ class SpeechPlayer:
         failed = self.process.returncode != 0
         self.process = None
         if failed:
+            self.queue.clear()
             print(error.decode('utf-8', errors='replace'), file=sys.stderr)
             return 'Voix indisponible : voir terminal / README'
+        if self.queue:
+            return self.play(*self.queue.popleft())
         return 'Lecture terminee'
 
     def close(self):
+        self.queue.clear()
         if self.process is not None:
             if self.process.poll() is None:
                 self.process.terminate()
