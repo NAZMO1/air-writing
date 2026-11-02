@@ -45,86 +45,185 @@ Ouvrir `http://localhost:8000` dans un navigateur récent. Le navigateur Windows
 
 ## Installation
 
-Utilisez un environnement Python compatible avec les dépendances et une webcam.
-Sous Windows, privilégiez Python **natif Windows** pour accéder à la webcam et aux
-voix système ; WSL nécessite une configuration caméra/audio supplémentaire.
+### Windows : PowerShell et Python 3.12
+
+Pour accéder à la webcam et aux voix Windows, lancez l'application avec Python
+**natif Windows**. WSL peut servir à mettre à jour les sources, mais possède ses
+propres installations Python et bibliothèques : une installation dans WSL ne
+répare pas l'environnement Windows.
+
+Vérifiez les interpréteurs disponibles depuis PowerShell :
+
+```powershell
+py -0p
+```
+
+Si Python 3.12 64 bits est disponible, créez un environnement séparé `.venv312`.
+Un ancien `.venv` créé avec Python 3.15 reste en 3.15 même après l'installation
+de Python 3.12. Cette procédure conserve l'ancien environnement et permet de
+tester une installation propre ; elle ne garantit pas à elle seule de résoudre
+une erreur de chargement de DLL.
+
+Placez-vous dans le dossier du projet (adaptez le chemin si nécessaire) :
+
+```powershell
+cd C:\Users\Etudiant\air-writing-windows
+py -3.12 -m venv .venv312
+.\.venv312\Scripts\python.exe --version
+.\.venv312\Scripts\python.exe -m pip install --upgrade pip
+```
+
+Installez d'abord PyTorch et torchvision CPU, puis vérifiez leur import
+**avant de poursuivre**. Un GPU n'est pas nécessaire (`gpu=False`) :
+
+```powershell
+.\.venv312\Scripts\python.exe -m pip install torch==2.14.1 torchvision==0.29.1 --index-url https://download.pytorch.org/whl/cpu
+.\.venv312\Scripts\python.exe -c "import torch, torchvision; print('Torch OK:', torch.__version__); print('Torchvision OK:', torchvision.__version__)"
+```
+
+Cette paire est issue des [commandes officielles PyTorch](https://pytorch.org/get-started/previous-versions/).
+Si une commande échoue, arrêtez cette procédure et conservez la **première erreur complète**.
+
+Lorsque les deux imports fonctionnent, installez les dépendances du projet :
+
+```powershell
+.\.venv312\Scripts\python.exe -m pip install -r requirements.txt -r requirements-ocr.txt
+.\.venv312\Scripts\python.exe -m pip install --force-reinstall --no-deps opencv-contrib-python==5.0.0.93
+```
+
+**OpenCV graphique doit être réinstallé en dernier.** EasyOCR installe
+`opencv-python-headless`, qui partage les fichiers `cv2` avec OpenCV graphique.
+La réinstallation ci-dessus restaure la prise en charge de la fenêtre `imshow`.
+Répétez-la après une réinstallation des dépendances OCR.
+
+Préparez les modèles (connexion Internet nécessaire au téléchargement) :
+
+```powershell
+New-Item -ItemType Directory -Force data
+curl.exe -L "https://storage.googleapis.com/mediapipe-models/hand_landmarker/hand_landmarker/float16/1/hand_landmarker.task" -o data/hand_landmarker.task
+.\.venv312\Scripts\python.exe -m src.text_recognition --download-models
+```
+
+Si `data/hand_landmarker.task` existe déjà, son téléchargement n'est pas nécessaire.
+Vérifiez ensuite l'OCR et lancez l'application :
+
+```powershell
+.\.venv312\Scripts\python.exe -c "import torch, torchvision, easyocr; print('Imports OCR OK')"
+.\.venv312\Scripts\python.exe main.py
+```
+
+Ces commandes utilisent toujours le même interpréteur : il n'est pas nécessaire
+d'activer l'environnement ni de modifier la politique d'exécution PowerShell.
+Sur CPU, l'aperçu OCR peut prendre plusieurs secondes.
+
+### Mettre à jour sous Windows, avec Git ou WSL
+
+Fermez l'application avant la mise à jour. Si Git est disponible dans PowerShell,
+exécutez `git pull origin main` depuis le dossier du dépôt.
+
+Si PowerShell affiche « git n'est pas reconnu », mais que Git est installé dans
+WSL, cette commande PowerShell met à jour **le même dossier Windows** :
+
+```powershell
+wsl --cd /mnt/c/Users/Etudiant/air-writing-windows git pull origin main
+```
+
+Ou, depuis un terminal WSL :
+
+```bash
+cd /mnt/c/Users/Etudiant/air-writing-windows
+git pull origin main
+```
+
+Adaptez le chemin à votre dossier. Si Git signale des modifications locales,
+examinez-les et sauvegardez-les avant de poursuivre.
+Revenez ensuite dans PowerShell et actualisez les dépendances et modèles :
+
+```powershell
+cd C:\Users\Etudiant\air-writing-windows
+.\.venv312\Scripts\python.exe -m pip install -r requirements.txt -r requirements-ocr.txt
+.\.venv312\Scripts\python.exe -m pip install --force-reinstall --no-deps opencv-contrib-python==5.0.0.93
+.\.venv312\Scripts\python.exe -m src.text_recognition --download-models
+.\.venv312\Scripts\python.exe main.py
+```
+
+Créez d'abord `.venv312` avec la procédure précédente s'il n'existe pas.
+
+### Linux / macOS
+
+Utilisez un Python compatible avec les dépendances et une webcam :
 
 ```bash
 git clone https://github.com/NAZMO1/air-writing.git
 cd air-writing
-python -m venv .venv
-```
-
-Activation :
-
-```bash
-# Linux / macOS
+python3 -m venv .venv
 source .venv/bin/activate
-# Windows PowerShell
-.venv\Scripts\Activate.ps1
-```
-
-Puis :
-
-```bash
-python -m pip install -r requirements.txt
-python -m pip install -r requirements-ocr.txt
-```
-
-**Important pour la fenêtre webcam :** EasyOCR installe `opencv-python-headless`.
-Il partage les fichiers `cv2` avec OpenCV graphique. Réinstallez la version graphique
-**en dernier**, après l'installation d'EasyOCR, pour conserver `imshow` :
-
-```bash
+python -m pip install --upgrade pip
+python -m pip install -r requirements.txt -r requirements-ocr.txt
 python -m pip install --force-reinstall --no-deps opencv-contrib-python==5.0.0.93
-```
-
-PyTorch et les poids OCR sont volumineux. Un GPU n'est pas requis (`gpu=False`).
-Pour limiter les téléchargements, on peut installer une version CPU compatible de
-PyTorch/torchvision suivant [les instructions officielles](https://pytorch.org/get-started/locally/)
-avant d'installer `requirements-ocr.txt`. Sur CPU, l'aperçu peut prendre plusieurs secondes.
-
-### Préparer les modèles une seule fois
-
-Téléchargez le modèle MediaPipe dans `data/hand_landmarker.task` :
-
-```bash
 mkdir -p data
 curl -L "https://storage.googleapis.com/mediapipe-models/hand_landmarker/hand_landmarker/float16/1/hand_landmarker.task" -o data/hand_landmarker.task
-```
-
-Avec PowerShell, utilisez `New-Item -ItemType Directory -Force data`, puis `curl.exe`
-avec la même URL et la même destination si `curl` est un alias PowerShell.
-
-Préparez explicitement les poids OCR français/anglais (connexion Internet requise) :
-
-```bash
 python -m src.text_recognition --download-models
-```
-
-Les poids sont conservés dans `data/easyocr/` et exclus de Git. Au lancement normal,
-le téléchargement automatique est désactivé. Les images de caméra, les tracés et
-le texte ne sont envoyés à aucune API ; la reconnaissance et la synthèse sont locales.
-
-Pour le mode **lettres** uniquement, entraînez aussi le modèle A–Z :
-
-```bash
-python train_model.py
-```
-
-Le mode mots ne nécessite pas `data/letter_model.pkl`.
-
-### Lancer
-
-```bash
 python main.py
-# Alternative sans EasyOCR :
-python main.py --mode letters
 ```
 
-Pour mettre à jour une installation existante, faites `git pull`, installez
-`requirements-ocr.txt`, réinstallez OpenCV graphique comme ci-dessus et préparez les
-poids OCR. Aucun réentraînement du modèle de lettres n'est nécessaire pour l'OCR.
+Pour installer PyTorch séparément, suivez les [instructions officielles adaptées
+à votre système](https://pytorch.org/get-started/locally/). La commande CPU Windows
+ci-dessus n'est pas une commande universelle pour tous les systèmes.
+
+### Modèles et mode lettres
+
+Les poids OCR français/anglais sont conservés dans `data/easyocr/` et exclus de
+Git. Ils restent réutilisables lorsque vous changez d'environnement Python.
+Au lancement normal, le téléchargement automatique est désactivé.
+Les images de caméra, les tracés et le texte ne sont envoyés à aucune API ;
+la reconnaissance et la synthèse sont locales.
+
+Le mode mots ne nécessite pas `data/letter_model.pkl`. Pour le mode **lettres**
+uniquement, entraînez le modèle A–Z s'il manque, puis lancez ce mode :
+
+```powershell
+# Windows PowerShell
+.\.venv312\Scripts\python.exe train_model.py
+.\.venv312\Scripts\python.exe main.py --mode letters
+```
+
+Sous Linux/macOS avec l'environnement activé : `python train_model.py`, puis
+`python main.py --mode letters`. Aucun réentraînement A–Z n'est nécessaire pour l'OCR.
+
+### Dépannage Windows / OCR
+
+- **`WinError 126` sur `torch_python.dll`** : une DLL ou l'une de ses dépendances
+  ne peut pas être chargée. Cela ne prouve pas, à lui seul, que la version Python
+  est incompatible. Installez ou réparez le
+  [Microsoft Visual C++ Redistributable x64](https://aka.ms/vc14/vc_redist.x64.exe)
+  **sous Windows**, puis relancez le test d'import dans un nouveau processus.
+  Consultez aussi la [documentation Microsoft](https://learn.microsoft.com/fr-fr/cpp/windows/latest-supported-vc-redist).
+- **`torch can only be initialized once per process`** : ce message peut suivre
+  un premier import échoué. Fermez l'application et utilisez la commande de test
+  ci-dessous pour obtenir l'erreur initiale, avant de relancer l'OCR.
+- **`No module named 'spellchecker'`** : le paquet à installer s'appelle
+  `pyspellchecker`, tandis que son module Python s'appelle `spellchecker`.
+  Il figure dans `requirements.txt`.
+- **Fenêtre OpenCV indisponible** : réinstallez OpenCV graphique en dernier avec
+  la commande `--force-reinstall --no-deps` de la procédure d'installation.
+- **Poids OCR absents** : relancez `-m src.text_recognition --download-models`
+  avec l'interpréteur utilisé pour lancer le projet.
+- Les messages MediaPipe concernant les *feedback tensors* ou `NORM_RECT`
+  ne suffisent pas à diagnostiquer un échec OCR. Cherchez le traceback ou le
+  message `OCR indisponible` qui suit.
+
+Test isolé PyTorch, à exécuter dans PowerShell depuis le dossier du projet :
+
+```powershell
+.\.venv312\Scripts\python.exe -c "import torch; print('Torch OK:', torch.__version__)"
+```
+
+Installation ciblée si `spellchecker` est encore absent :
+
+```powershell
+.\.venv312\Scripts\python.exe -m pip install pyspellchecker
+```
 
 ## Choisir sa langue avec la main
 
